@@ -763,8 +763,15 @@ button, input, textarea, select { font: inherit; color: inherit; }
 (function () {
   "use strict";
 
-  var ADMIN_PASS = "0122002";
+  // الباسورد متشفّر بشكل بسيط عشان مايبقاش مكتوب صريح في كود الصفحة.
+  // ده مش حماية حقيقية — اللي بيحمي النشر فعلاً هو توكن النشر.
+  var ADMIN_PASS_ENC = "MDEyMjAwMg==";
   var GH = { owner: "mahmoud2512002", repo: "sadrad", branch: "main", path: "config.json" };
+  // الإعدادات الحيّة بتتقري من هنا مهما كان الموقع مرفوع فين
+  var CFG_URLS = [
+    "https://raw.githubusercontent.com/" + GH.owner + "/" + GH.repo + "/" + GH.branch + "/" + GH.path,
+    "config.json"
+  ];
   var FONTS = "https://fonts.googleapis.com/css2?family=Alexandria:wght@400;600;700&family=IBM+Plex+Sans+Arabic:wght@400;500;600&display=swap";
 
   function $(id) { return document.getElementById(id); }
@@ -1618,19 +1625,21 @@ button, input, textarea, select { font: inherit; color: inherit; }
 
   /* الموقع بياخد إعداداته من config.json لو موجود جنبه على السيرفر،
      ولو مش موجود بيفضل شغّال بالإعدادات المكتوبة جوّه الصفحة. */
-  function pullRemoteCfg() {
-    if (!/^https?:$/.test(location.protocol)) return;
+  function pullRemoteCfg(i) {
     if (typeof fetch !== "function") return;
-    fetch("config.json?t=" + Date.now(), { cache: "no-store" })
+    i = i || 0;
+    if (i >= CFG_URLS.length) return;
+    var u = CFG_URLS[i] + (CFG_URLS[i].indexOf("?") < 0 ? "?" : "&") + "t=" + Date.now();
+    fetch(u, { cache: "no-store" })
       .then(function (r) { return r.ok ? r.json() : null; })
       .then(function (j) {
-        if (!j || !j.cats || !j.cats.length) return;
+        if (!j || !j.cats || !j.cats.length) { pullRemoteCfg(i + 1); return; }
         if (step !== 0) return;
         CFG = j;
         if (!CFG.shops) CFG.shops = [];
         applyCfg();
       })
-      .catch(function () {});
+      .catch(function () { pullRemoteCfg(i + 1); });
   }
 
   function ghToken() {
@@ -1708,7 +1717,9 @@ button, input, textarea, select { font: inherit; color: inherit; }
     inp.focus();
 
     function tryPass() {
-      if (inp.value.trim() === ADMIN_PASS) { closeOverlay(); openAdmin(); }
+      var ok = false;
+      try { ok = btoa(inp.value.trim()) === ADMIN_PASS_ENC; } catch (e) { ok = false; }
+      if (ok) { closeOverlay(); openAdmin(); }
       else { $("passErr").style.display = "block"; inp.value = ""; inp.focus(); }
     }
     $("passOk").addEventListener("click", tryPass);
